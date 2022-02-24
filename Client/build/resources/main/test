@@ -1,0 +1,75 @@
+package de.mickymaus209.chatserver.backend;
+
+import de.mickymaus209.chatserver.ChatServer;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Server {
+    private ServerSocket serverSocket;
+    private Socket clientSocket;
+    private String host;
+    private int port;
+    private OutputStream out;
+    private InputStream in;
+    private PrintStream writer;
+    private BufferedReader reader;
+    private final static List<Socket> clients = new ArrayList<>();
+
+    public Server(String host, int port) {
+        this.host = host;
+        this.port = port;
+    }
+
+    public void start() {
+        try {
+            serverSocket = new ServerSocket(port);
+            while (true) {
+                clients.add(clientSocket = serverSocket.accept());
+                ChatServer.LOGGER.info("A new Client (" + clientSocket.getInetAddress() + ") has connected to the server.");
+                in = clientSocket.getInputStream();
+                reader = new BufferedReader(new InputStreamReader(in));
+
+                new Thread(() -> {
+                    while (true) {
+                        String message = "";
+                        try {
+                            if ((message = reader.readLine()) == null) break;
+                            String finalMessage = message;
+                            clients.forEach(client ->{
+                                try {
+                                    out = client.getOutputStream();
+                                    writer = new PrintStream(out, true);
+                                    writer.println(finalMessage);
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                            ChatServer.LOGGER.info(message);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }).start();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void stop() {
+        try {
+            clientSocket.close();
+            serverSocket.close();
+            writer.close();
+            reader.close();
+            in.close();
+            out.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
